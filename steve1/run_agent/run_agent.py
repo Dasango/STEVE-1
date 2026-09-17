@@ -1,5 +1,6 @@
 import os
 import sys
+import contextlib
 
 import cv2
 import torch
@@ -32,8 +33,9 @@ def run_agent(prompt_embed, gameplay_length, save_video_filepath,
     prog_evaluator = ProgrammaticEvaluator(obs)
 
     # Run agent in MineRL env
+    autocast_ctx = torch.cuda.amp.autocast if torch.cuda.is_available() else contextlib.nullcontext
     for _ in tqdm(range(gameplay_length)):
-        with torch.cuda.amp.autocast():
+        with autocast_ctx():
             minerl_action = agent.get_action(obs, prompt_embed)
 
         obs, _, _, _ = env.step(minerl_action)
@@ -88,7 +90,10 @@ if __name__ == '__main__':
     if args.custom_text_prompt is not None:
         # Generate a video for the text prompt
         mineclip = load_mineclip_wconfig()
-        prior = load_vae_model(PRIOR_INFO)
+        prior_info = PRIOR_INFO.copy()
+        if args.prior_weights is not None:
+            prior_info['model_path'] = args.prior_weights
+        prior = load_vae_model(prior_info)
         prompt_embed = get_prior_embed(args.custom_text_prompt, mineclip, prior, DEVICE)
         custom_prompt_embeds = {args.custom_text_prompt: prompt_embed}
         generate_text_prompt_videos(custom_prompt_embeds, args.in_model, args.in_weights, args.text_cond_scale,

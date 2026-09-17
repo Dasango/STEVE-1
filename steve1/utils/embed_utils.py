@@ -1,3 +1,4 @@
+import contextlib
 import torch
 
 from steve1.data.EpisodeStorage import EpisodeStorage
@@ -5,9 +6,10 @@ from steve1.data.EpisodeStorage import EpisodeStorage
 
 def get_prior_embed(text, mineclip, prior, device):
     """Get the embed processed by the prior."""
-    with torch.cuda.amp.autocast():
+    autocast_ctx = torch.cuda.amp.autocast if torch.cuda.is_available() else contextlib.nullcontext
+    with autocast_ctx():
         text_embed = mineclip.encode_text(text).detach().cpu().numpy()
-    with torch.no_grad(), torch.cuda.amp.autocast():
+    with torch.no_grad(), autocast_ctx():
         text_prompt_embed = prior(torch.tensor(text_embed).float().to(device)).cpu().detach().numpy()
     return text_prompt_embed
 
